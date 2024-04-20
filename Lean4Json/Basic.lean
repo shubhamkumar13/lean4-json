@@ -37,10 +37,11 @@ inductive JSONPathElement where
   | Index : UInt32 -> JSONPathElement
 deriving Repr, DecidableEq
 
--- also need to define Either since not a native type in lean4
-inductive Either (α : Type) (β : Type) : Type
-  | Left  : α -> Either α β
-  | Right : β -> Either α β
+-- -- also need to define Either since not a native type in lean4
+-- inductive Either (α : Type) (β : Type) : Type
+--   | Left  : α -> Either α β
+--   | Right : β -> Either α β
+-- use Except instead of Either
 
 -- %runElab derive "JSONPathElement" [Show,Eq]
 
@@ -57,33 +58,28 @@ def JSONErr : Type := Prod JSONPath String
 -- public export
 -- Result : Type -> Type
 -- Result = Either JSONErr
-def Result : Type -> Type := Either JSONErr
+def Result : Type -> Type := Sum JSONErr
 
 -- public export
 -- Parser : Type -> Type -> Type
 -- Parser v a = v -> Either JSONErr a
 def Parser (value  : Type) (α : Type) :=
-  value -> Either JSONErr α
+  value -> Sum JSONErr α
 
 -- public export
 -- orElse : Either a b -> Lazy (Either a b) -> Either a b
 -- orElse r@(Right _) _ = r
 -- orElse _           v = v
 def hOrElse
-  {α β : Type}
-  {a : Either α β}
-  {b : Thunk (Either α β)}
-  {c : Either α β}
-  (e₁ : a) (f : b) : c :=
-  match e₁, f with
-  | Either.Right r, _ => Either.Right r
+  {α : Type}
+  (e₁ : Sum α α) (f : Thunk (Sum α α)) : Sum α α :=
+  match e₁, Thunk.get f with
+  | Sum.inl r, _ => Sum.inr r
   | _, v => v
 
 -- public export
 -- (<|>) : Parser v a -> Parser v a -> Parser v a
 -- f <|> g = \vv => f vv `orElse` g vv
-def seq (f : Parser value α) (g : Parser value β) : Parser value α := λ v =>
-  OrElse (f v) (g v)
 
 -- public export
 -- data DecodingErr : Type where
