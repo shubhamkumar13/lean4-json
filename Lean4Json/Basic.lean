@@ -1,3 +1,5 @@
+set_option autoImplicit false
+
 def hello := "world"
 
 -- interface Encoder v where
@@ -48,22 +50,22 @@ deriving Repr, DecidableEq
 -- public export
 -- JSONPath : Type
 -- JSONPath = List JSONPathElement
-def JSONPath : Type := List JSONPathElement
+abbrev JSONPath : Type := List JSONPathElement
 
 -- public export
 -- JSONErr : Type
 -- JSONErr = (JSONPath,String)
-def JSONErr : Type := Prod JSONPath String
+abbrev JSONErr : Type := Prod JSONPath String
 
 -- public export
 -- Result : Type -> Type
 -- Result = Either JSONErr
-def Result : Type -> Type := Sum JSONErr
+abbrev Result : Type -> Type := Sum JSONErr
 
 -- public export
 -- Parser : Type -> Type -> Type
 -- Parser v a = v -> Either JSONErr a
-def Parser (value  : Type) (α : Type) :=
+abbrev Parser (value  : Type) (α : Type) :=
   value -> Sum JSONErr α
 
 -- public export
@@ -71,20 +73,93 @@ def Parser (value  : Type) (α : Type) :=
 -- orElse r@(Right _) _ = r
 -- orElse _           v = v
 def hOrElse
-  {α : Type}
-  (e₁ : Sum α α) (f : Thunk (Sum α α)) : Sum α α :=
+  {α β: Type}
+  (e₁ : Sum α β) (f : Thunk (Sum α β)) : Sum α β :=
   match e₁, Thunk.get f with
-  | Sum.inl r, _ => Sum.inr r
+  | Sum.inr r, _ => Sum.inr r
   | _, v => v
 
 -- public export
 -- (<|>) : Parser v a -> Parser v a -> Parser v a
 -- f <|> g = \vv => f vv `orElse` g vv
+def seq {v a : Type} (f : Parser v a) (g : Parser v a) : Parser v a := λ vv =>
+ hOrElse (f vv) (g vv)
+
+infixr:50 " <|> " => seq
+
+-- record Bounds where
+--   constructor MkBounds
+--   ||| 0-based first line
+--   startLine : Int
+--   ||| 0-based first col
+--   startCol : Int
+--   ||| 0-based last line of bound
+--   endLine : Int
+--   ||| 0-based first column after bound
+--   endCol : Int
+structure Bounds where
+  startLine: Int
+  startCol: Int
+  endLine: Int
+  endCol: Int
+deriving Repr
+
+-- record FileContext where
+--   constructor MkFileContext
+--   file : String
+--   range : Bounds
+structure FileContext where
+  file : String
+  range : Bounds
+deriving Repr
 
 -- public export
 -- data DecodingErr : Type where
 --   JErr      : JSONErr -> DecodingErr
 --   JParseErr : (FileContext,ParseErr)-> DecodingErr
+
+-- export
+-- SExpable FileContext where
+--   toSExp fc =
+--     SExpList [ SExpList
+--                [ SymbolAtom "filename", toSExp fc.file ]
+--              , SExpList [ SymbolAtom "start"
+--                         , IntegerAtom (cast fc.range.startLine)
+--                         , IntegerAtom (cast fc.range.startCol)
+--                         ]
+--              , SExpList [ SymbolAtom "end"
+--                         , IntegerAtom (cast fc.range.endLine)
+--                         , IntegerAtom (cast fc.range.endCol)
+--                         ]
+--              ]
+
+-- export
+-- FromSExpable FileContext where
+--   fromSExp (SExpList [ SExpList
+--                [ SymbolAtom "filename", filenameSExp ]
+--              , SExpList [ SymbolAtom "start"
+--                         , IntegerAtom startLine
+--                         , IntegerAtom startCol
+--                         ]
+--              , SExpList [ SymbolAtom "end"
+--                         , IntegerAtom endLine
+--                         , IntegerAtom endCol
+--                         ]
+--              ]) = do file <- fromSExp filenameSExp
+--                      pure $ MkFileContext {file, range = MkBounds
+--                        { startLine = cast startLine
+--                        , startCol  = cast startCol
+--                        , endLine   = cast endLine
+--                        , endCol    = cast endCol
+--                        }}
+--   fromSExp _ = Nothing
+
+inductive ParseError : (token err : Type) → Type where
+| EOI : ParseError
+
+inductive DecodingErr : Type where
+| JErr : JSONErr → DecodingErr
+| JParseErr : FileContext × ParseErr → DecodingErr
 
 -- %runElab derive "DecodingErr" [Show,Eq]
 
