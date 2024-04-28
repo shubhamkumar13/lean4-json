@@ -153,9 +153,33 @@ deriving Repr
 --                        , endCol    = cast endCol
 --                        }}
 --   fromSExp _ = Nothing
+inductive CharClass : Type where
+| Space : CharClass
 
-inductive ParseError : (token err : Type) → Type where
-| EOI : ParseError
+inductive ParseError (token : Type) (err : Type)  : Type where
+| Expected : Sum String token -> ParseError token err
+| EOI : ParseError token err
+| ExpectedChar : CharClass -> ParseError token err
+
+inductive JSON : Type where
+| JNull   : JSON
+| JInteger : Int -> JSON
+| JDouble : Float -> JSON
+| JBool   : Bool   -> JSON
+| JString : String -> JSON
+| JArray  : List JSON -> JSON
+| JObject : List (String × JSON) -> JSON
+
+inductive JSErr : Type where
+| ExpectedString : JSErr
+| InvalidEscape : JSErr
+
+inductive JSToken : Type where
+| Symbol : Char -> JSToken
+| Lit : JSON -> JSToken
+| EOI : JSToken
+
+abbrev ParseErr := ParseError JSToken JSErr
 
 inductive DecodingErr : Type where
 | JErr : JSONErr → DecodingErr
